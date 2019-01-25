@@ -343,7 +343,7 @@ func TestSubscribePendingAndQueuedTransactions(t *testing.T) {
 	t.Parallel()
 
 	// Create the pool to test the pricing enforcement with
-	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()))
+	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
 	blockchain := &testBlockChain{statedb, 1000000, new(event.Feed)}
 
 	pool := NewTxPool(testTxPoolConfig, params.TestChainConfig, blockchain)
@@ -2429,6 +2429,7 @@ func testTransactionJournaling(t *testing.T, nolocals bool) {
 	config.NoLocals = nolocals
 	config.Journal = journal
 	config.Rejournal = time.Second
+	config.BroadcastPendingLocalTx = time.Second
 
 	pool := NewTxPool(config, params.TestChainConfig, blockchain)
 
