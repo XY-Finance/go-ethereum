@@ -1688,6 +1688,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 
 		dirty, _ := bc.stateCache.TrieDB().Size()
 		stats.report(chain, it.index, dirty)
+		bc.WriteTransferLogs(block.Hash(), block.NumberU64(), statedb.TransferLogs())
 	}
 
 	// Any blocks remaining here? The only ones we care about are the future ones
@@ -2187,4 +2188,11 @@ func (bc *BlockChain) InsertHeaderChain(chain []*types.Header, checkFreq int) (i
 	defer bc.chainmu.Unlock()
 	_, err := bc.hc.InsertHeaderChain(chain, start)
 	return 0, err
+}
+
+// WriteTransferLogs writes all the transfer logs belonging to a block.
+func (bc *BlockChain) WriteTransferLogs(hash common.Hash, number uint64, transferLogs []*types.TransferLog) {
+	bc.wg.Add(1)
+	defer bc.wg.Done()
+	rawdb.WriteTransferLogs(bc.db, hash, number, transferLogs)
 }
