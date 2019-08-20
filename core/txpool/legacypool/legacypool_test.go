@@ -391,7 +391,7 @@ func TestSubscribePendingAndQueuedTransactions(t *testing.T) {
 	blockchain := newTestBlockChain(params.TestChainConfig, 1000000, statedb, new(event.Feed))
 
 	pool := New(testTxPoolConfig, blockchain)
-	pool.Init(new(big.Int).SetUint64(testTxPoolConfig.PriceLimit), blockchain.CurrentBlock(), makeAddressReserver())
+	pool.Init(testTxPoolConfig.PriceLimit, blockchain.CurrentBlock(), makeAddressReserver())
 	defer pool.Close()
 
 	// Keep listening for authenticated transactions.
@@ -403,7 +403,7 @@ func TestSubscribePendingAndQueuedTransactions(t *testing.T) {
 		keys := []*ecdsa.PrivateKey{}
 		for i := 0; i < numbers; i++ {
 			key, _ := crypto.GenerateKey()
-			txpool.currentState.AddBalance(crypto.PubkeyToAddress(key.PublicKey), big.NewInt(1000000))
+			txpool.currentState.AddBalance(crypto.PubkeyToAddress(key.PublicKey), uint256.NewInt(1000000))
 
 			keys = append(keys, key)
 		}
