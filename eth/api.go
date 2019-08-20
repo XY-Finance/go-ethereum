@@ -410,6 +410,18 @@ func (api *PublicDebugAPI) AccountRange(blockNrOrHash rpc.BlockNumberOrHash, sta
 	return stateDb.IteratorDump(opts), nil
 }
 
+// GetTransferLogs is a debug API function that returns the transfer logs for a block hash, if known.
+func (api *PrivateDebugAPI) GetTransferLogs(ctx context.Context, hash common.Hash) ([]*types.TransferLog, error) {
+	number := rawdb.ReadHeaderNumber(api.eth.ChainDb(), hash)
+	if number == nil {
+		return nil, errors.New("unknown transfer logs")
+	}
+	if transferLogs := rawdb.ReadTransferLogs(api.eth.ChainDb(), hash, *number); transferLogs != nil {
+		return transferLogs, nil
+	}
+	return nil, errors.New("unknown transfer logs")
+}
+
 // StorageRangeResult is the result of a debug_storageRangeAt API call.
 type StorageRangeResult struct {
 	Storage storageMap   `json:"storage"`
@@ -462,6 +474,11 @@ func storageRangeAt(st state.Trie, start []byte, maxResult int) (StorageRangeRes
 		result.NextKey = &next
 	}
 	return result, nil
+}
+
+// GetTotalDifficulty returns the total difficulty of the specified block.
+func (api *PrivateDebugAPI) GetTotalDifficulty(blockHash common.Hash) *big.Int {
+	return api.eth.blockchain.GetTd(blockHash, api.eth.blockchain.GetBlockByHash(blockHash).NumberU64())
 }
 
 // GetModifiedAccountsByNumber returns all accounts that have changed between the
@@ -606,4 +623,9 @@ func (api *PrivateDebugAPI) GetAccessibleState(from, to rpc.BlockNumber) (uint64
 		}
 	}
 	return 0, fmt.Errorf("No state found")
+}
+
+// GetBlockReceipts returns all transaction receipts of the specified block.
+func (api *PrivateDebugAPI) GetBlockReceipts(blockHash common.Hash) types.Receipts {
+	return api.eth.blockchain.GetReceiptsByHash(blockHash)
 }
