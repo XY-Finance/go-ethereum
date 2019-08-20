@@ -485,6 +485,24 @@ web3._extend({
 			call: 'debug_dbAncients',
 			params: 0
 		}),
+		new web3._extend.Method({
+			name: 'getTotalDifficulty',
+			call: 'debug_getTotalDifficulty',
+			params: 1,
+			inputFormatter: [null],
+		}),
+		new web3._extend.Method({
+			name: 'getTransferLogs',
+			call: 'debug_getTransferLogs',
+			params: 1,
+			inputFormatter: [null],
+		}),
+		new web3._extend.Method({
+			name: 'getBlockReceipts',
+			call: 'debug_getBlockReceipts',
+			params: 1,
+			inputFormatter: [null],
+		}),
 	],
 	properties: []
 });
