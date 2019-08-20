@@ -1816,6 +1816,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals, setHead bool)
 
 		dirty, _ := bc.triedb.Size()
 		stats.report(chain, it.index, dirty, setHead)
+		bc.WriteTransferLogs(block.Hash(), block.NumberU64(), statedb.TransferLogs())
 
 		if !setHead {
 			// After merge we expect few side chains. Simply count
@@ -2498,4 +2499,11 @@ func (bc *BlockChain) SetBlockValidatorAndProcessorForTesting(v Validator, p Pro
 // It is thread-safe and can be called repeatedly without side effects.
 func (bc *BlockChain) SetTrieFlushInterval(interval time.Duration) {
 	atomic.StoreInt64(&bc.flushInterval, int64(interval))
+}
+
+// WriteTransferLogs writes all the transfer logs belonging to a block.
+func (bc *BlockChain) WriteTransferLogs(hash common.Hash, number uint64, transferLogs []*types.TransferLog) {
+	bc.wg.Add(1)
+	defer bc.wg.Done()
+	rawdb.WriteTransferLogs(bc.db, hash, number, transferLogs)
 }
