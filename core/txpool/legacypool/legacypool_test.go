@@ -406,7 +406,7 @@ func TestSubscribePendingAndQueuedTransactions(t *testing.T) {
 		keys := []*ecdsa.PrivateKey{}
 		for i := 0; i < numbers; i++ {
 			key, _ := crypto.GenerateKey()
-			txpool.currentState.AddBalance(crypto.PubkeyToAddress(key.PublicKey), big.NewInt(1000000))
+			txpool.currentState.AddBalance(crypto.PubkeyToAddress(key.PublicKey), uint256.NewInt(1000000))
 
 			keys = append(keys, key)
 		}
