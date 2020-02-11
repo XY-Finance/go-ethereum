@@ -389,11 +389,7 @@ func (api *DebugAPI) AccountRange(blockNrOrHash rpc.BlockNumberOrHash, start hex
 
 // GetTransferLogs is a debug API function that returns the transfer logs for a block hash, if known.
 func (api *PrivateDebugAPI) GetTransferLogs(ctx context.Context, hash common.Hash) ([]*types.TransferLog, error) {
-	number := rawdb.ReadHeaderNumber(api.eth.ChainDb(), hash)
-	if number == nil {
-		return nil, errors.New("unknown transfer logs")
-	}
-	if transferLogs := rawdb.ReadTransferLogs(api.eth.ChainDb(), hash, *number); transferLogs != nil {
+	if transferLogs := api.eth.blockchain.GetTransferLogs(hash); transferLogs != nil {
 		return transferLogs, nil
 	}
 	return nil, errors.New("unknown transfer logs")
@@ -603,6 +599,9 @@ func (api *DebugAPI) GetAccessibleState(from, to rpc.BlockNumber) (uint64, error
 }
 
 // GetBlockReceipts returns all transaction receipts of the specified block.
-func (api *PrivateDebugAPI) GetBlockReceipts(blockHash common.Hash) types.Receipts {
-	return api.eth.blockchain.GetReceiptsByHash(blockHash)
+func (api *PrivateDebugAPI) GetBlockReceipts(blockHash common.Hash) (types.Receipts, error) {
+	if receipts := api.eth.blockchain.GetReceiptsByHash(blockHash); receipts != nil {
+		return receipts, nil
+	}
+	return nil, errors.New("unknown receipts")
 }
