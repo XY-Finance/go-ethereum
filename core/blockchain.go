@@ -84,13 +84,14 @@ var (
 )
 
 const (
-	bodyCacheLimit      = 256
-	blockCacheLimit     = 256
-	receiptsCacheLimit  = 32
-	txLookupCacheLimit  = 1024
-	maxFutureBlocks     = 256
-	maxTimeFutureBlocks = 30
-	TriesInMemory       = 128
+	bodyCacheLimit         = 256
+	blockCacheLimit        = 256
+	receiptsCacheLimit     = 32
+	transferLogsCacheLimit = 32
+	txLookupCacheLimit     = 1024
+	maxFutureBlocks        = 256
+	maxTimeFutureBlocks    = 30
+	TriesInMemory          = 128
 
 	// BlockChainVersion ensures that an incompatible database forces a resync from scratch.
 	//
@@ -191,13 +192,14 @@ type BlockChain struct {
 	currentBlock     atomic.Value // Current head of the block chain
 	currentFastBlock atomic.Value // Current head of the fast-sync chain (may be above the block chain!)
 
-	stateCache    state.Database // State database to reuse between imports (contains state cache)
-	bodyCache     *lru.Cache     // Cache for the most recent block bodies
-	bodyRLPCache  *lru.Cache     // Cache for the most recent block bodies in RLP encoded format
-	receiptsCache *lru.Cache     // Cache for the most recent receipts per block
-	blockCache    *lru.Cache     // Cache for the most recent entire blocks
-	txLookupCache *lru.Cache     // Cache for the most recent transaction lookup data.
-	futureBlocks  *lru.Cache     // future blocks are blocks added for later processing
+	stateCache        state.Database // State database to reuse between imports (contains state cache)
+	bodyCache         *lru.Cache     // Cache for the most recent block bodies
+	bodyRLPCache      *lru.Cache     // Cache for the most recent block bodies in RLP encoded format
+	receiptsCache     *lru.Cache     // Cache for the most recent receipts per block
+	transferLogsCache *lru.Cache     // Cache for the most recent receipts per block
+	blockCache        *lru.Cache     // Cache for the most recent entire blocks
+	txLookupCache     *lru.Cache     // Cache for the most recent transaction lookup data.
+	futureBlocks      *lru.Cache     // future blocks are blocks added for later processing
 
 	wg            sync.WaitGroup //
 	quit          chan struct{}  // shutdown signal, closed in Stop.
@@ -223,6 +225,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 	bodyCache, _ := lru.New(bodyCacheLimit)
 	bodyRLPCache, _ := lru.New(bodyCacheLimit)
 	receiptsCache, _ := lru.New(receiptsCacheLimit)
+	transferLogsCache, _ := lru.New(transferLogsCacheLimit)
 	blockCache, _ := lru.New(blockCacheLimit)
 	txLookupCache, _ := lru.New(txLookupCacheLimit)
 	futureBlocks, _ := lru.New(maxFutureBlocks)
@@ -237,17 +240,18 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 			Journal:   cacheConfig.TrieCleanJournal,
 			Preimages: cacheConfig.Preimages,
 		}),
-		quit:           make(chan struct{}),
-		chainmu:        syncx.NewClosableMutex(),
-		shouldPreserve: shouldPreserve,
-		bodyCache:      bodyCache,
-		bodyRLPCache:   bodyRLPCache,
-		receiptsCache:  receiptsCache,
-		blockCache:     blockCache,
-		txLookupCache:  txLookupCache,
-		futureBlocks:   futureBlocks,
-		engine:         engine,
-		vmConfig:       vmConfig,
+		quit:              make(chan struct{}),
+		chainmu:           syncx.NewClosableMutex(),
+		shouldPreserve:    shouldPreserve,
+		bodyCache:         bodyCache,
+		bodyRLPCache:      bodyRLPCache,
+		receiptsCache:     receiptsCache,
+		blockCache:        blockCache,
+		txLookupCache:     txLookupCache,
+		futureBlocks:      futureBlocks,
+		engine:            engine,
+		vmConfig:          vmConfig,
+		transferLogsCache: transferLogsCache,
 	}
 	bc.validator = NewBlockValidator(chainConfig, bc, engine)
 	bc.prefetcher = newStatePrefetcher(chainConfig, bc, engine)
@@ -605,6 +609,7 @@ func (bc *BlockChain) SetHeadBeyondRoot(head uint64, root common.Hash) (uint64, 
 			// removed in the hc.SetHead function.
 			rawdb.DeleteBody(db, hash, num)
 			rawdb.DeleteReceipts(db, hash, num)
+			rawdb.DeleteTransferLogs(db, hash, num)
 		}
 		// Todo(rjl493456442) txlookup, bloombits, etc
 	}
@@ -624,6 +629,7 @@ func (bc *BlockChain) SetHeadBeyondRoot(head uint64, root common.Hash) (uint64, 
 	bc.bodyCache.Purge()
 	bc.bodyRLPCache.Purge()
 	bc.receiptsCache.Purge()
+	bc.transferLogsCache.Purge()
 	bc.blockCache.Purge()
 	bc.txLookupCache.Purge()
 	bc.futureBlocks.Purge()
@@ -1079,6 +1085,9 @@ func (bc *BlockChain) InsertReceiptChain(blockChain types.Blocks, receiptChain [
 			// Write all the data out into the database
 			rawdb.WriteBody(batch, block.Hash(), block.NumberU64(), block.Body())
 			rawdb.WriteReceipts(batch, block.Hash(), block.NumberU64(), receiptChain[i])
+
+			// We don't have transfer logs for fast sync blocks
+			rawdb.WriteMissingTransferLogs(batch, block.Hash(), block.NumberU64())
 			rawdb.WriteTxLookupEntriesByBlock(batch, block) // Always write tx indices for live blocks, we assume they are needed
 
 			// Write everything belongs to the blocks into the database. So that
@@ -1217,6 +1226,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	rawdb.WriteTd(blockBatch, block.Hash(), block.NumberU64(), externTd)
 	rawdb.WriteBlock(blockBatch, block)
 	rawdb.WriteReceipts(blockBatch, block.Hash(), block.NumberU64(), receipts)
+	rawdb.WriteTransferLogs(blockBatch, block.Hash(), block.NumberU64(), state.TransferLogs())
 	rawdb.WritePreimages(blockBatch, state.Preimages())
 	if err := blockBatch.Write(); err != nil {
 		log.Crit("Failed to write block into disk", "err", err)
@@ -1280,6 +1290,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 			}
 		}
 	}
+
 	// If the total difficulty is higher than our known, add it to the canonical chain
 	// Second clause in the if statement reduces the vulnerability to selfish mining.
 	// Please refer to http://www.cs.cornell.edu/~ie53/publications/btcProcFC.pdf
@@ -1690,7 +1701,6 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 
 		dirty, _ := bc.stateCache.TrieDB().Size()
 		stats.report(chain, it.index, dirty)
-		bc.WriteTransferLogs(block.Hash(), block.NumberU64(), statedb.TransferLogs())
 	}
 
 	// Any blocks remaining here? The only ones we care about are the future ones
