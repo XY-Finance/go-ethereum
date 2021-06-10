@@ -620,9 +620,29 @@ func (api *DebugAPI) SetTrieFlushInterval(interval string) error {
 }
 
 // GetBlockReceipts returns all transaction receipts of the specified block.
-func (api *DebugAPI) GetBlockReceipts(blockHash common.Hash) (types.Receipts, error) {
+func (api *DebugAPI) GetBlockReceipts(ctx context.Context, blockHash common.Hash) ([]map[string]interface{}, error) {
 	if receipts := api.eth.blockchain.GetReceiptsByHash(blockHash); receipts != nil {
-		return receipts, nil
+		if block := api.eth.blockchain.GetBlockByHash(blockHash); block != nil {
+			txs := block.Transactions()
+			if len(txs) != len(receipts) {
+				return nil, fmt.Errorf("txs length doesn't equal to receipts' length")
+			}
+
+			txReceipts := make([]map[string]interface{}, 0, len(txs))
+			header := block.Header()
+			for idx, receipt := range receipts {
+				tx := txs[idx]
+				signer := types.MakeSigner(api.eth.APIBackend.ChainConfig(), header.Number, header.Time)
+				from, _ := types.Sender(signer, tx)
+				fields, err := ethapi.ToTransactionReceipt(ctx, api.eth.APIBackend, tx, from, receipt, blockHash, tx.Hash(), header.Number.Uint64(), uint64(idx))
+				if err != nil {
+					return nil, err
+				}
+				txReceipts = append(txReceipts, fields)
+			}
+
+			return txReceipts, nil
+		}
 	}
 	return nil, errors.New("unknown receipts")
 }
