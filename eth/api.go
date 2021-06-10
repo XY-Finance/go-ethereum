@@ -619,9 +619,27 @@ func (api *PrivateDebugAPI) GetAccessibleState(from, to rpc.BlockNumber) (uint64
 }
 
 // GetBlockReceipts returns all transaction receipts of the specified block.
-func (api *PrivateDebugAPI) GetBlockReceipts(blockHash common.Hash) (types.Receipts, error) {
+func (api *PrivateDebugAPI) GetBlockReceipts(ctx context.Context, blockHash common.Hash) ([]map[string]interface{}, error) {
 	if receipts := api.eth.blockchain.GetReceiptsByHash(blockHash); receipts != nil {
-		return receipts, nil
+		if block := api.eth.blockchain.GetBlockByHash(blockHash); block != nil {
+			txs := block.Transactions()
+			if len(txs) != len(receipts) {
+				return nil, fmt.Errorf("txs length doesn't equal to receipts' length")
+			}
+
+			txReceipts := make([]map[string]interface{}, 0, len(txs))
+			blockNumber := block.Header().Number
+			for idx, receipt := range receipts {
+				tx := txs[idx]
+				fields, err := ethapi.ToTransactionReceipt(ctx, api.eth.APIBackend, tx, receipt, blockHash, tx.Hash(), blockNumber.Uint64(), uint64(idx))
+				if err != nil {
+					return nil, err
+				}
+				txReceipts = append(txReceipts, fields)
+			}
+
+			return txReceipts, nil
+		}
 	}
 	return nil, errors.New("unknown receipts")
 }
