@@ -173,7 +173,7 @@ func (api *FilterAPI) NewPendingTransactions(ctx context.Context) (*rpc.Subscrip
 //
 // It is part of the filter package because this filter can be used through the
 // `eth_getFilterChanges` polling method that is also used for log filters.
-func (api *PublicFilterAPI) NewQueuedTransactionFilter() rpc.ID {
+func (api *FilterAPI) NewQueuedTransactionFilter() rpc.ID {
 	var (
 		queuedTxs   = make(chan []*types.Transaction)
 		queuedTxSub = api.events.SubscribeQueuedTxs(queuedTxs)
@@ -207,7 +207,7 @@ func (api *PublicFilterAPI) NewQueuedTransactionFilter() rpc.ID {
 
 // NewQueuedTransactions creates a subscription that is triggered each time a transaction
 // enters the transaction pool and was signed from one of the transactions this nodes manages.
-func (api *PublicFilterAPI) NewQueuedTransactions(ctx context.Context) (*rpc.Subscription, error) {
+func (api *FilterAPI) NewQueuedTransactions(ctx context.Context) (*rpc.Subscription, error) {
 	notifier, supported := rpc.NotifierFromContext(ctx)
 	if !supported {
 		return &rpc.Subscription{}, rpc.ErrNotificationsUnsupported

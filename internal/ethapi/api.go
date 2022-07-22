@@ -639,7 +639,7 @@ func (s *BlockChainAPI) GetBalance(ctx context.Context, address common.Address, 
 // given block hash. The rpc.LatestBlockNumber and rpc.PendingBlockNumber meta
 // block numbers are also allowed.
 // Deprecated: can be replaced by GetBalance
-func (s *PublicBlockChainAPI) GetBalanceByHash(ctx context.Context, address common.Address, blockHash common.Hash) (*hexutil.Big, error) {
+func (s *BlockChainAPI) GetBalanceByHash(ctx context.Context, address common.Address, blockHash common.Hash) (*hexutil.Big, error) {
 	hash := rpc.BlockNumberOrHashWithHash(blockHash, false)
 	return s.GetBalance(ctx, address, hash)
 }

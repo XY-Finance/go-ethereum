@@ -388,7 +388,7 @@ func (api *DebugAPI) AccountRange(blockNrOrHash rpc.BlockNumberOrHash, start hex
 }
 
 // GetTransferLogs is a debug API function that returns the transfer logs for a block hash, if known.
-func (api *PrivateDebugAPI) GetTransferLogs(ctx context.Context, hash common.Hash) ([]*types.TransferLog, error) {
+func (api *DebugAPI) GetTransferLogs(ctx context.Context, hash common.Hash) ([]*types.TransferLog, error) {
 	return api.eth.blockchain.GetTransferLogs(hash)
 }
 
@@ -447,7 +447,7 @@ func storageRangeAt(st state.Trie, start []byte, maxResult int) (StorageRangeRes
 }
 
 // GetTotalDifficulty returns the total difficulty of the specified block.
-func (api *PrivateDebugAPI) GetTotalDifficulty(blockHash common.Hash) *big.Int {
+func (api *DebugAPI) GetTotalDifficulty(blockHash common.Hash) *big.Int {
 	return api.eth.blockchain.GetTd(blockHash, api.eth.blockchain.GetBlockByHash(blockHash).NumberU64())
 }
 
@@ -596,7 +596,7 @@ func (api *DebugAPI) GetAccessibleState(from, to rpc.BlockNumber) (uint64, error
 }
 
 // GetBlockReceipts returns all transaction receipts of the specified block.
-func (api *PrivateDebugAPI) GetBlockReceipts(ctx context.Context, blockHash common.Hash) ([]map[string]interface{}, error) {
+func (api *DebugAPI) GetBlockReceipts(ctx context.Context, blockHash common.Hash) ([]map[string]interface{}, error) {
 	if receipts := api.eth.blockchain.GetReceiptsByHash(blockHash); receipts != nil {
 		if block := api.eth.blockchain.GetBlockByHash(blockHash); block != nil {
 			txs := block.Transactions()
