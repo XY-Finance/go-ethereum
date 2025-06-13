@@ -44,6 +44,14 @@ var (
 
 // Transaction types.
 const (
+	ArbitrumDepositTxType         = 0x64
+	ArbitrumUnsignedTxType        = 0x65
+	ArbitrumContractTxType        = 0x66
+	ArbitrumRetryTxType           = 0x68
+	ArbitrumSubmitRetryableTxType = 0x69
+	ArbitrumInternalTxType        = 0x6A
+	ArbitrumLegacyTxType          = 0x78
+
 	LegacyTxType     = 0x00
 	AccessListTxType = 0x01
 	DynamicFeeTxType = 0x02
@@ -89,6 +97,9 @@ type TxData interface {
 
 	rawSignatureValues() (v, r, s *big.Int)
 	setSignatureValues(chainID, v, r, s *big.Int)
+
+	skipNonceChecks() bool
+	skipFromEOACheck() bool
 
 	// effectiveGasPrice computes the gas price paid by the transaction, given
 	// the inclusion block baseFee.
@@ -166,7 +177,7 @@ func (tx *Transaction) DecodeRLP(s *rlp.Stream) error {
 			return err
 		}
 		// Now decode the inner transaction.
-		inner, err := tx.decodeTyped(b)
+		inner, err := tx.decodeTyped(b, true)
 		if err == nil {
 			tx.setDecoded(inner, size)
 		}
@@ -188,7 +199,7 @@ func (tx *Transaction) UnmarshalBinary(b []byte) error {
 		return nil
 	}
 	// It's an EIP-2718 typed transaction envelope.
-	inner, err := tx.decodeTyped(b)
+	inner, err := tx.decodeTyped(b, false)
 	if err != nil {
 		return err
 	}
@@ -197,22 +208,44 @@ func (tx *Transaction) UnmarshalBinary(b []byte) error {
 }
 
 // decodeTyped decodes a typed transaction from the canonical format.
-func (tx *Transaction) decodeTyped(b []byte) (TxData, error) {
+func (tx *Transaction) decodeTyped(b []byte, arbParsing bool) (TxData, error) {
 	if len(b) <= 1 {
 		return nil, errShortTypedTx
 	}
 	var inner TxData
-	switch b[0] {
-	case AccessListTxType:
-		inner = new(AccessListTx)
-	case DynamicFeeTxType:
-		inner = new(DynamicFeeTx)
-	case BlobTxType:
-		inner = new(BlobTx)
-	case SetCodeTxType:
-		inner = new(SetCodeTx)
-	default:
-		return nil, ErrTxTypeNotSupported
+	if arbParsing {
+		switch b[0] {
+		case ArbitrumDepositTxType:
+			inner = new(ArbitrumDepositTx)
+		case ArbitrumInternalTxType:
+			inner = new(ArbitrumInternalTx)
+		case ArbitrumUnsignedTxType:
+			inner = new(ArbitrumUnsignedTx)
+		case ArbitrumContractTxType:
+			inner = new(ArbitrumContractTx)
+		case ArbitrumRetryTxType:
+			inner = new(ArbitrumRetryTx)
+		case ArbitrumSubmitRetryableTxType:
+			inner = new(ArbitrumSubmitRetryableTx)
+		case ArbitrumLegacyTxType:
+			inner = new(ArbitrumLegacyTxData)
+		default:
+			arbParsing = false
+		}
+	}
+	if !arbParsing {
+		switch b[0] {
+		case AccessListTxType:
+			inner = new(AccessListTx)
+		case DynamicFeeTxType:
+			inner = new(DynamicFeeTx)
+		case BlobTxType:
+			inner = new(BlobTx)
+		case SetCodeTxType:
+			inner = new(SetCodeTx)
+		default:
+			return nil, ErrTxTypeNotSupported
+		}
 	}
 	err := inner.decode(b[1:])
 	return inner, err
@@ -275,6 +308,10 @@ func (tx *Transaction) Protected() bool {
 // Type returns the transaction type.
 func (tx *Transaction) Type() uint8 {
 	return tx.inner.txType()
+}
+
+func (tx *Transaction) GetInner() TxData {
+	return tx.inner.copy()
 }
 
 // ChainId returns the EIP155 chain ID of the transaction. The return value will always be
