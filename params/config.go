@@ -34,6 +34,32 @@ var (
 	HoodiGenesisHash   = common.HexToHash("0xbbe312868b376a3001692a646dd2d7d1e4406380dfd86b98aa8a34d1557c971b")
 )
 
+const (
+	OPMainnetChainID        = 10
+	OPGoerliChainID         = 420
+	BaseMainnetChainID      = 8453
+	BaseGoerliChainID       = 84531
+	baseSepoliaChainID      = 84532
+	baseGoerliDevnetChainID = 11763071
+	pgnSepoliaChainID       = 58008
+	devnetChainID           = 997
+	chaosnetChainID         = 888
+)
+
+// OP Stack chain config
+var (
+	// March 17, 2023 @ 7:00:00 pm UTC
+	OptimismGoerliRegolithTime = uint64(1679079600)
+	// May 4, 2023 @ 5:00:00 pm UTC
+	BaseGoerliRegolithTime = uint64(1683219600)
+	// Apr 21, 2023 @ 6:30:00 pm UTC
+	baseGoerliDevnetRegolithTime = uint64(1682101800)
+	// March 5, 2023 @ 2:48:00 am UTC
+	devnetRegolithTime = uint64(1677984480)
+	// August 16, 2023 @ 3:34:22 am UTC
+	chaosnetRegolithTime = uint64(1692156862)
+)
+
 func newUint64(val uint64) *uint64 { return &val }
 
 var (
@@ -337,6 +363,15 @@ var (
 		Clique:                  nil,
 	}
 	TestRules = TestChainConfig.Rules(new(big.Int), false, 0)
+
+	OptimismTestConfig = func() *ChainConfig {
+		conf := *AllCliqueProtocolChanges // copy the config
+		conf.Clique = nil
+		conf.TerminalTotalDifficultyPassed = true
+		conf.BedrockBlock = big.NewInt(5)
+		conf.Optimism = &OptimismConfig{EIP1559Elasticity: 50, EIP1559Denominator: 10}
+		return &conf
+	}()
 )
 
 var (
@@ -411,9 +446,22 @@ type ChainConfig struct {
 	OsakaTime    *uint64 `json:"osakaTime,omitempty"`    // Osaka switch time (nil = no fork, 0 = already on osaka)
 	VerkleTime   *uint64 `json:"verkleTime,omitempty"`   // Verkle switch time (nil = no fork, 0 = already on verkle)
 
+	BedrockBlock *big.Int `json:"bedrockBlock,omitempty"` // Bedrock switch block (nil = no fork, 0 = already on optimism bedrock)
+	RegolithTime *uint64  `json:"regolithTime,omitempty"` // Regolith switch time (nil = no fork, 0 = already on optimism regolith)
+	CanyonTime   *uint64  `json:"canyonTime,omitempty"`   // Canyon switch time (nil = no fork, 0 = already on optimism canyon)
+	// Delta: the Delta upgrade does not affect the execution-layer, and is thus not configurable in the chain config.
+	EcotoneTime *uint64 `json:"ecotoneTime,omitempty"` // Ecotone switch time (nil = no fork, 0 = already on optimism ecotone)
+
+	InteropTime *uint64 `json:"interopTime,omitempty"` // Interop switch time (nil = no fork, 0 = already on optimism interop)
+
 	// TerminalTotalDifficulty is the amount of total difficulty reached by
 	// the network that triggers the consensus upgrade.
 	TerminalTotalDifficulty *big.Int `json:"terminalTotalDifficulty,omitempty"`
+
+	// TerminalTotalDifficultyPassed is a flag specifying that the network already
+	// passed the terminal total difficulty. Its purpose is to disable legacy sync
+	// even without having seen the TTD locally (safer long term).
+	TerminalTotalDifficultyPassed bool `json:"terminalTotalDifficultyPassed,omitempty"`
 
 	DepositContractAddress common.Address `json:"depositContractAddress,omitempty"`
 
@@ -434,6 +482,19 @@ type ChainConfig struct {
 	Ethash             *EthashConfig       `json:"ethash,omitempty"`
 	Clique             *CliqueConfig       `json:"clique,omitempty"`
 	BlobScheduleConfig *BlobScheduleConfig `json:"blobSchedule,omitempty"`
+
+	ArbitrumChainParams ArbitrumChainParams `json:"arbitrum,omitempty"`
+	Optimism            *OptimismConfig     `json:"optimism,omitempty"`
+}
+
+type OptimismConfig struct {
+	EIP1559Elasticity        uint64 `json:"eip1559Elasticity"`
+	EIP1559Denominator       uint64 `json:"eip1559Denominator"`
+	EIP1559DenominatorCanyon uint64 `json:"eip1559DenominatorCanyon"`
+}
+
+func (o *OptimismConfig) String() string {
+	return "optimism"
 }
 
 // EthashConfig is the consensus engine configs for proof-of-work based sealing.
@@ -670,6 +731,10 @@ func (c *ChainConfig) IsVerkleGenesis() bool {
 // IsEIP4762 returns whether eip 4762 has been activated at given block.
 func (c *ChainConfig) IsEIP4762(num *big.Int, time uint64) bool {
 	return c.IsVerkle(num, time)
+}
+
+func (c *ChainConfig) IsOptimism() bool {
+	return c.Optimism != nil
 }
 
 // CheckCompatible checks whether scheduled fork transitions have been imported
