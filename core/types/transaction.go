@@ -407,14 +407,7 @@ func (tx *Transaction) IsDepositTx() bool {
 	return tx.Type() == DepositTxType
 }
 
-/* OP: IsSystemTx returns true for deposits that are system transactions. These transactions
-// are executed in an unmetered environment & do not contribute to the block gas limit.
-func (tx *Transaction) IsSystemTx() bool {
-	return tx.inner.isSystemTx()
-}
-
-
-// OP: Cost returns (gas * gasPrice) + (blobGas * blobGasPrice) + value.
+// Cost returns (gas * gasPrice) + (blobGas * blobGasPrice) + value.
 func (tx *Transaction) Cost() *big.Int {
 	total := new(big.Int).Mul(tx.GasPrice(), new(big.Int).SetUint64(tx.Gas()))
 	if tx.Type() == BlobTxType {
@@ -422,6 +415,12 @@ func (tx *Transaction) Cost() *big.Int {
 	}
 	total.Add(total, tx.Value())
 	return total
+}
+
+/* OP: IsSystemTx returns true for deposits that are system transactions. These transactions
+// are executed in an unmetered environment & do not contribute to the block gas limit.
+func (tx *Transaction) IsSystemTx() bool {
+	return tx.inner.isSystemTx()
 }
 
 // OP: RollupCostData caches the information needed to efficiently compute the data availability fee
